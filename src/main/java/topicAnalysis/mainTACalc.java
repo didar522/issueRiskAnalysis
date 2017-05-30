@@ -94,7 +94,7 @@ public void preProcessing (){
 				BufferedWriter out = new BufferedWriter(new FileWriter(dest));
 				
 				InputStream is = new FileInputStream(filePath+"en-token.bin");
-				 
+				
 				TokenizerModel model = new TokenizerModel(is);
 	 
 				Tokenizer tokenizer = new TokenizerME(model);

@@ -15,11 +15,14 @@ import java.util.Iterator;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Row;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import dataPreprocess.*;
 import textTFIDF.Issue;
 import topicAnalysis.mainTACalc;
 import textTFIDF.*;
+
 
 
 public class issueRiskAnalysis_main {
@@ -56,6 +59,10 @@ public class issueRiskAnalysis_main {
 	public static int taIteration = 1; 
 	public static String topicFilesFilePath = strFilePath+ "/Topic files"; 
 	public static double  luceneThreshold =0.1; 
+	
+	// The en-token.bin file need to be placed in the file-path declared in variable strFilePath = "C:/Users/Didar/Desktop/Summary/";
+	// The en-token file is available is resources folder. Or you can use getResource as well. 
+	
 	//-------------------------- Declaration of Topic Model & TFIDF Setup -----------------------------
 	
 	
@@ -72,7 +79,10 @@ public class issueRiskAnalysis_main {
 		//----------------------Optional: If we want to select only bugs and perform analysis within this subset. 
 		
 		TopicModeling ();
-		performingTFIDF ();
+		
+		// resultJSONObject holds the final results for the program.  
+		JSONObject resultJSONObject = performingTFIDF ();
+		
 	}
 	
 	
@@ -159,7 +169,7 @@ public class issueRiskAnalysis_main {
 	}
 	
 	
-	public static void performingTFIDF (){
+	public static JSONObject performingTFIDF (){
 		
 		
 		//Optional: Just for test purpose---------------------
@@ -175,8 +185,6 @@ public class issueRiskAnalysis_main {
 		for (DataIssueTemplate iterator: bugIssueData){
 			trainSet.add(new Issue(iterator.getStrKey(), iterator.getStrPriority(),iterator.getStrSummary(), iterator.getStrDescription(),
 					iterator.getDblNumberofFiles(), iterator.getStrProcessedText(), iterator.getStrIssueType(), iterator.alIssueTopicInfo, iterator.maxSimilarTopicInfo)); 
-			
-			
 		}
 		
 		
@@ -185,33 +193,42 @@ public class issueRiskAnalysis_main {
 
 		ArrayList<Issue> matchedList = lucene.searchInLuceneIndexes(searchString);
 		
-	try{	
-		
-		File printdest = new File(strFilePath+"/results.txt");
-		BufferedWriter out = new BufferedWriter(new FileWriter(printdest));
-		
-		for (int count=0;count<10;count++){
-			out.write("Issue ID -> "+matchedList.get(count).getissueId()+"\n"); out.newLine();
-			out.write("Similarity -> "+matchedList.get(count).similarityvalue+"\n"); out.newLine();
-			out.write("Priority -> "+matchedList.get(count).getIssuePriority()+"\n"); out.newLine();
-			out.write("Issue Type -> "+matchedList.get(count).getissueType()+"\n"); out.newLine();
-			out.write("Most prominent topic num -> "+matchedList.get(count).maxSimilarTopicInfo.topicNum+"\n"); out.newLine();
-			out.write("Most prominent topic similarity -> "+ matchedList.get(count).maxSimilarTopicInfo.topicSimilarity+"\n"); out.newLine();
-			out.write("Most prominent topic keywords -> "+ matchedList.get(count).maxSimilarTopicInfo.topicLabels+"\n"); out.newLine();
-			out.write("=========================================================================="+"\n"+"\n"); out.newLine();
-		}
-		
-		out.close(); 
+		JSONObject resultJSONObject = printInJason (matchedList); 
 		
 		
-	} catch (FileNotFoundException e1) {
-		// TODO Auto-generated catch block
-		e1.printStackTrace();
-	} catch (IOException e1) {
-		// TODO Auto-generated catch block
-		e1.printStackTrace();
-	} 
 		
+		
+		
+	//--------------------Regular text file print out for the output---------------------
+		
+//	try{	
+//		
+//		File printdest = new File(strFilePath+"/results.txt");
+//		BufferedWriter out = new BufferedWriter(new FileWriter(printdest));
+//		
+//		for (int count=0;count<10;count++){
+//			out.write("Issue ID -> "+matchedList.get(count).getissueId()+"\n"); out.newLine();
+//			out.write("Similarity -> "+matchedList.get(count).similarityvalue+"\n"); out.newLine();
+//			out.write("Priority -> "+matchedList.get(count).getIssuePriority()+"\n"); out.newLine();
+//			out.write("Issue Type -> "+matchedList.get(count).getissueType()+"\n"); out.newLine();
+//			out.write("Most prominent topic num -> "+matchedList.get(count).maxSimilarTopicInfo.topicNum+"\n"); out.newLine();
+//			out.write("Most prominent topic similarity -> "+ matchedList.get(count).maxSimilarTopicInfo.topicSimilarity+"\n"); out.newLine();
+//			out.write("Most prominent topic keywords -> "+ matchedList.get(count).maxSimilarTopicInfo.topicLabels+"\n"); out.newLine();
+//			out.write("=========================================================================="+"\n"+"\n"); out.newLine();
+//		}
+//		
+//		out.close(); 
+//		
+//	} catch (FileNotFoundException e1) {
+//		// TODO Auto-generated catch block
+//		e1.printStackTrace();
+//	} catch (IOException e1) {
+//		// TODO Auto-generated catch block
+//		e1.printStackTrace();
+//	} 
+		
+	
+	//--------------------Regular text file print out for the output---------------------
 	
 //	---------------Debug console print -----------------------
 //		for (int count=0;count<10;count++){
@@ -225,6 +242,8 @@ public class issueRiskAnalysis_main {
 //			System.out.println("==========================================================================");
 //		}
 		
+	System.out.println("Returning results in Jason Object");
+	return resultJSONObject; 
 	
 	}
 
@@ -240,6 +259,40 @@ public class issueRiskAnalysis_main {
 	
 	
 	
+	public static JSONObject printInJason (ArrayList<Issue> matchedList){
 	
+	
+	JSONObject outputJSONObject = new JSONObject();
 
+	if (matchedList.size()==0){
+		outputJSONObject.put("Status", "Failure");
+		outputJSONObject.put("Message", "Not enough traceable and/or similar issues to make recommendation");
+		return outputJSONObject;
+	} else {
+	
+		outputJSONObject.put("Status", "Success");
+		outputJSONObject.put("Message", "Generating Results");
+
+	JSONArray similarJSONArray = new JSONArray();
+	
+	for (int count = 0; count < 10 ; count++) {
+		
+		JSONObject tempJSONHolder = new JSONObject();
+		tempJSONHolder.put("IssueID", matchedList.get(count).getissueId());
+		tempJSONHolder.put("SimilarityValue", matchedList.get(count).similarityvalue);
+		tempJSONHolder.put("IssuePriority", matchedList.get(count).getIssuePriority());
+		tempJSONHolder.put("IssueType", matchedList.get(count).getissueType());
+		tempJSONHolder.put("TopicNum", matchedList.get(count).maxSimilarTopicInfo.topicNum);
+		tempJSONHolder.put("TopicSimilarity", matchedList.get(count).maxSimilarTopicInfo.topicSimilarity);
+		tempJSONHolder.put("TopicLabels", matchedList.get(count).maxSimilarTopicInfo.topicLabels);
+		
+		similarJSONArray.put(tempJSONHolder);
+	}
+	
+	return outputJSONObject.put("Sim", similarJSONArray);
+
+	}
+
+}
+	
 }
